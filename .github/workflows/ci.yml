@@ -1,0 +1,124 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test-shared:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'fiifi-shared/package-lock.json'
+      
+      - name: Install dependencies
+        working-directory: ./fiifi-shared
+        run: npm ci
+      
+      - name: Run tests
+        working-directory: ./fiifi-shared
+        run: npm test
+      
+      - name: Run linting
+        working-directory: ./fiifi-shared
+        run: npm run lint || true
+
+  test-core-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'fiifi-core-api/package-lock.json'
+      
+      - name: Install dependencies
+        working-directory: ./fiifi-core-api
+        run: npm ci
+      
+      - name: Run unit tests
+        working-directory: ./fiifi-core-api
+        run: npm run test:unit
+      
+      - name: Run linting
+        working-directory: ./fiifi-core-api
+        run: npm run lint || true
+      
+      - name: Build
+        working-directory: ./fiifi-core-api
+        run: npm run build
+
+  test-integration:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:6
+        ports:
+          - 27017:27017
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'fiifi-core-api/package-lock.json'
+      
+      - name: Install dependencies
+        working-directory: ./fiifi-core-api
+        run: npm ci
+      
+      - name: Run integration tests
+        working-directory: ./fiifi-core-api
+        run: npm run test:integration
+        env:
+          MONGODB_URI: mongodb://localhost:27017/fiifi_test
+
+  build-and-deploy:
+    needs: [test-shared, test-core-api, test-integration]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Build shared library
+        working-directory: ./fiifi-shared
+        run: |
+          npm ci
+          npm run build
+      
+      - name: Build core API
+        working-directory: ./fiifi-core-api
+        run: |
+          npm ci
+          npm run build
+      
+      - name: Create deployment artifacts
+        run: |
+          mkdir -p dist
+          cp -r fiifi-shared/dist dist/shared
+          cp -r fiifi-core-api/dist dist/core-api
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-artifacts
+          path: dist/

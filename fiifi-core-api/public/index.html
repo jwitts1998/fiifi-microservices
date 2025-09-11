@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fiifi Data Validation Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .content {
+            padding: 30px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #5a6fd8;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f8f9fa;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Fiifi Data Validation Dashboard</h1>
+            <p>Real-time monitoring of companies and processing statistics</p>
+        </div>
+        
+        <div class="content">
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalCompanies">-</div>
+                    <div>Total Companies</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="activeCompanies">-</div>
+                    <div>Active Companies</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="apiStatus">-</div>
+                    <div>API Status</div>
+                </div>
+            </div>
+            
+            <div>
+                <button class="btn" onclick="loadCompanies()">🔄 Refresh Data</button>
+                <button class="btn" onclick="loadStats()">📈 Load Statistics</button>
+            </div>
+            
+            <div id="loadingIndicator" class="loading" style="display: none;">
+                <p>Loading companies...</p>
+            </div>
+            
+            <table id="companiesTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Sector</th>
+                        <th>Status</th>
+                        <th>Stage</th>
+                        <th>Rating</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="companiesTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCompanies();
+            loadStats();
+            checkApiHealth();
+        });
+
+        // API Health Check
+        async function checkApiHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                document.getElementById('apiStatus').textContent = data.status === 'healthy' ? '✅ Healthy' : '❌ Unhealthy';
+            } catch (error) {
+                document.getElementById('apiStatus').textContent = '❌ Offline';
+            }
+        }
+
+        // Load companies
+        async function loadCompanies() {
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const companiesTable = document.getElementById('companiesTable');
+            
+            loadingIndicator.style.display = 'block';
+            companiesTable.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE}/companies`);
+                const data = await response.json();
+
+                if (data.success) {
+                    displayCompanies(data.data.companies);
+                    companiesTable.style.display = 'table';
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        // Display companies in table
+        function displayCompanies(companies) {
+            const tbody = document.getElementById('companiesTableBody');
+            
+            if (companies.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6">No companies found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = companies.map(company => `
+                <tr>
+                    <td><strong>${company.name}</strong></td>
+                    <td>${company.sector || '-'}</td>
+                    <td>${company.status || '-'}</td>
+                    <td>${company.stage || '-'}</td>
+                    <td>${company.rating || '-'}</td>
+                    <td>
+                        <button class="btn" onclick="deleteCompany('${company._id}')">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Load statistics
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE}/companies/stats`);
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('totalCompanies').textContent = data.data.totalCompanies || 0;
+                    document.getElementById('activeCompanies').textContent = data.data.companiesByStatus?.active || 0;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Delete company
+        async function deleteCompany(companyId) {
+            if (!confirm('Are you sure you want to delete this company?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/companies/${companyId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    loadCompanies();
+                    loadStats();
+                    alert('Company deleted successfully!');
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
