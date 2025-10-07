@@ -58,6 +58,12 @@
         .btn:hover {
             background: #5a6fd8;
         }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-danger {
+            background: #dc3545;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -76,6 +82,27 @@
             padding: 20px;
             color: #666;
         }
+        .environment-info {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -86,6 +113,11 @@
         </div>
         
         <div class="content">
+            <div class="environment-info">
+                <strong>Environment:</strong> <span id="environment">Detecting...</span><br>
+                <strong>API Base URL:</strong> <span id="apiBase">Detecting...</span>
+            </div>
+
             <div class="stats">
                 <div class="stat-card">
                     <div class="stat-number" id="totalCompanies">-</div>
@@ -104,6 +136,46 @@
             <div>
                 <button class="btn" onclick="loadCompanies()">🔄 Refresh Data</button>
                 <button class="btn" onclick="loadStats()">📈 Load Statistics</button>
+                <button class="btn btn-success" onclick="showAddCompanyForm()">➕ Add Company</button>
+            </div>
+
+            <!-- Add Company Form -->
+            <div id="addCompanyForm" style="display: none; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                <h3>Add New Company</h3>
+                <div class="form-group">
+                    <label>Company Name:</label>
+                    <input type="text" id="companyName" placeholder="Enter company name">
+                </div>
+                <div class="form-group">
+                    <label>Sector:</label>
+                    <select id="companySector">
+                        <option value="Technology">Technology</option>
+                        <option value="Healthcare">Healthcare</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Education">Education</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Stage:</label>
+                    <select id="companyStage">
+                        <option value="Seed">Seed</option>
+                        <option value="Series A">Series A</option>
+                        <option value="Series B">Series B</option>
+                        <option value="Series C">Series C</option>
+                        <option value="Growth">Growth</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Geography:</label>
+                    <input type="text" id="companyGeography" placeholder="e.g., US, EU, Asia">
+                </div>
+                <div class="form-group">
+                    <label>Description:</label>
+                    <input type="text" id="companyDescription" placeholder="Brief description">
+                </div>
+                <button class="btn btn-success" onclick="addCompany()">Create Company</button>
+                <button class="btn" onclick="hideAddCompanyForm()">Cancel</button>
             </div>
             
             <div id="loadingIndicator" class="loading" style="display: none;">
@@ -117,7 +189,7 @@
                         <th>Sector</th>
                         <th>Status</th>
                         <th>Stage</th>
-                        <th>Rating</th>
+                        <th>Geography</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -128,7 +200,12 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:3000';
+        // Auto-detect API base URL
+        const API_BASE = window.location.origin;
+        
+        // Update environment info
+        document.getElementById('environment').textContent = window.location.hostname.includes('run.app') ? 'Production (Cloud Run)' : 'Development (Local)';
+        document.getElementById('apiBase').textContent = API_BASE;
 
         // Load data on page load
         document.addEventListener('DOMContentLoaded', function() {
@@ -161,7 +238,7 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    displayCompanies(data.data.companies);
+                    displayCompanies(data.data);
                     companiesTable.style.display = 'table';
                 } else {
                     alert('Error: ' + data.message);
@@ -184,13 +261,13 @@
 
             tbody.innerHTML = companies.map(company => `
                 <tr>
-                    <td><strong>${company.name}</strong></td>
+                    <td><strong>${company.name || 'N/A'}</strong></td>
                     <td>${company.sector || '-'}</td>
                     <td>${company.status || '-'}</td>
                     <td>${company.stage || '-'}</td>
-                    <td>${company.rating || '-'}</td>
+                    <td>${company.geography || '-'}</td>
                     <td>
-                        <button class="btn" onclick="deleteCompany('${company._id}')">Delete</button>
+                        <button class="btn btn-danger" onclick="deleteCompany('${company._id}')">Delete</button>
                     </td>
                 </tr>
             `).join('');
@@ -205,9 +282,73 @@
                 if (data.success) {
                     document.getElementById('totalCompanies').textContent = data.data.totalCompanies || 0;
                     document.getElementById('activeCompanies').textContent = data.data.companiesByStatus?.active || 0;
+                } else {
+                    // Fallback: count from companies list
+                    const companiesResponse = await fetch(`${API_BASE}/companies`);
+                    const companiesData = await companiesResponse.json();
+                    if (companiesData.success) {
+                        document.getElementById('totalCompanies').textContent = companiesData.data.length;
+                        document.getElementById('activeCompanies').textContent = companiesData.data.filter(c => c.status === 'active').length;
+                    }
                 }
             } catch (error) {
                 console.error('Error loading stats:', error);
+            }
+        }
+
+        // Show add company form
+        function showAddCompanyForm() {
+            document.getElementById('addCompanyForm').style.display = 'block';
+        }
+
+        // Hide add company form
+        function hideAddCompanyForm() {
+            document.getElementById('addCompanyForm').style.display = 'none';
+            // Clear form
+            document.getElementById('companyName').value = '';
+            document.getElementById('companySector').value = 'Technology';
+            document.getElementById('companyStage').value = 'Seed';
+            document.getElementById('companyGeography').value = '';
+            document.getElementById('companyDescription').value = '';
+        }
+
+        // Add company
+        async function addCompany() {
+            const companyData = {
+                name: document.getElementById('companyName').value,
+                sector: document.getElementById('companySector').value,
+                stage: document.getElementById('companyStage').value,
+                geography: document.getElementById('companyGeography').value,
+                description: document.getElementById('companyDescription').value,
+                status: 'active'
+            };
+
+            if (!companyData.name) {
+                alert('Please enter a company name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/companies`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(companyData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    hideAddCompanyForm();
+                    loadCompanies();
+                    loadStats();
+                    alert('Company created successfully!');
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
             }
         }
 

@@ -8,6 +8,7 @@ import { requestLogger } from './middleware/requestLogger';
 import { errorHandler } from './middleware/errorHandler';
 import { cors as customCors } from './middleware/cors';
 import companyRoutes from './routes/companyRoutes';
+import cleanupRoutes from './routes/cleanupRoutes';
 import { Logger } from './shared/logger';
 
 const logger = new Logger('Server');
@@ -22,14 +23,7 @@ export function createApp(): Koa {
   app.use(customCors);
   app.use(bodyParser());
 
-  // Serve static files from public directory
-  app.use(serve(path.join(__dirname, '../public')));
-
-  // Routes
-  app.use(companyRoutes.routes());
-  app.use(companyRoutes.allowedMethods());
-
-  // Health check endpoint
+  // Health check endpoint (before static files)
   app.use(async (ctx, next) => {
     if (ctx.path === '/health') {
       ctx.status = 200;
@@ -37,6 +31,37 @@ export function createApp(): Koa {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
+      };
+      return;
+    }
+    await next();
+  });
+
+  // API Routes (before static files)
+  app.use(companyRoutes.routes());
+  app.use(companyRoutes.allowedMethods());
+  app.use(cleanupRoutes.routes());
+  app.use(cleanupRoutes.allowedMethods());
+
+  // Serve static files from public directory
+  app.use(serve(path.join(__dirname, '../public')));
+
+  // Root route handler - serve API info
+  app.use(async (ctx, next) => {
+    if (ctx.path === '/') {
+      ctx.status = 200;
+      ctx.body = {
+        message: 'Fiifi Core API - Development Environment',
+        version: '1.0.0',
+        environment: process.env.NODE_ENV || 'development',
+        endpoints: {
+          health: '/health',
+          companies: '/companies',
+          dashboard: '/index.html',
+          api_docs: '/api-docs'
+        },
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
       };
       return;
     }
@@ -58,8 +83,8 @@ export async function startServer(port: number = 3000): Promise<void> {
         port,
         environment: process.env.NODE_ENV || 'development',
       });
-      logger.info(`Web dashboard available at: http://localhost:${port}`, {
-        dashboard: `http://localhost:${port}`,
+      logger.info(`Web dashboard available at: http://localhost:${port}/index.html`, {
+        dashboard: `http://localhost:${port}/index.html`,
       });
     });
   } catch (error: any) {

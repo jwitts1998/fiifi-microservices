@@ -1,7 +1,5 @@
-# Use Node.js 18 Alpine image
 FROM node:18-alpine
 
-# Set working directory
 WORKDIR /app
 
 # Copy package files
@@ -10,8 +8,11 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci --only=production
 
-# Copy source code
+# Copy built application
 COPY dist/ ./dist/
+
+# Copy public directory for static files
+COPY public/ ./public/
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs

@@ -1,4 +1,5 @@
 import { Company, CompanyDocument } from '../models/Company';
+import mongoose from 'mongoose';
 import { 
   createSuccessResponse, 
   createErrorResponse, 
@@ -11,12 +12,68 @@ import {
 import { validateCompany } from '../shared/validation';
 
 export class CompanyService {
+  private isDatabaseConnected(): boolean {
+    return mongoose.connection.readyState === 1;
+  }
+
+  private getMockCompanies() {
+    return [
+      {
+        _id: 'mock-1',
+        name: 'TechCorp Inc.',
+        sector: 'Technology',
+        status: 'active',
+        stage: 'Series A',
+        geography: 'US',
+        description: 'A leading technology company',
+        rating: 4.5,
+        modified: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        _id: 'mock-2',
+        name: 'HealthTech Solutions',
+        sector: 'Healthcare',
+        status: 'active',
+        stage: 'Seed',
+        geography: 'US',
+        description: 'Innovative healthcare technology',
+        rating: 4.2,
+        modified: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    ];
+  }
+
+  private getMockStats() {
+    return {
+      totalCompanies: 2,
+      avgRating: 4.35,
+      statusBreakdown: {
+        active: 2
+      },
+      sectorBreakdown: {
+        Technology: 1,
+        Healthcare: 1
+      }
+    };
+  }
+
   async createCompany(companyData: any) {
     try {
       // Validate input data
       const validation = validateCompany(companyData);
       if (!validation.isValid) {
         throw createValidationError(validation.errors.join(', '));
+      }
+
+      if (!this.isDatabaseConnected()) {
+        return createSuccessResponse(
+          { ...validation.data, _id: 'mock-' + Date.now() }, 
+          'Company created successfully (mock mode)'
+        );
       }
 
       // Check if company already exists
@@ -44,6 +101,15 @@ export class CompanyService {
 
   async getCompanyById(id: string) {
     try {
+      if (!this.isDatabaseConnected()) {
+        const mockCompanies = this.getMockCompanies();
+        const company = mockCompanies.find(c => c._id === id);
+        if (!company) {
+          return createErrorResponse('Company not found', createNotFoundError('Company').message);
+        }
+        return createSuccessResponse(company, 'Company retrieved successfully (mock mode)');
+      }
+
       const company = await Company.findById(id);
       if (!company) {
         return createErrorResponse('Company not found', createNotFoundError('Company').message);
@@ -64,6 +130,22 @@ export class CompanyService {
         sortOrder = 'desc',
         ...searchFilters
       } = pagination;
+
+      if (!this.isDatabaseConnected()) {
+        const mockCompanies = this.getMockCompanies();
+        const total = mockCompanies.length;
+        const totalPages = calculateTotalPages(total, limit);
+        const offset = calculateOffset(page, limit);
+        const paginatedCompanies = mockCompanies.slice(offset, offset + limit);
+
+        return createPaginatedResponse(
+          paginatedCompanies,
+          page,
+          limit,
+          total,
+          'Companies retrieved successfully (mock mode)'
+        );
+      }
 
       // Build query
       const query: any = {};
@@ -124,6 +206,13 @@ export class CompanyService {
         throw createValidationError(validation.errors.join(', '));
       }
 
+      if (!this.isDatabaseConnected()) {
+        return createSuccessResponse(
+          { ...validation.data, _id: id, modified: new Date() }, 
+          'Company updated successfully (mock mode)'
+        );
+      }
+
       const company = await Company.findByIdAndUpdate(
         id,
         { ...validation.data, modified: new Date() },
@@ -145,6 +234,10 @@ export class CompanyService {
 
   async deleteCompany(id: string) {
     try {
+      if (!this.isDatabaseConnected()) {
+        return createSuccessResponse(null, 'Company deleted successfully (mock mode)');
+      }
+
       const company = await Company.findByIdAndDelete(id);
       if (!company) {
         return createErrorResponse('Company not found', createNotFoundError('Company').message);
@@ -160,6 +253,13 @@ export class CompanyService {
     try {
       if (rating < 0 || rating > 5) {
         throw createValidationError('Rating must be between 0 and 5');
+      }
+
+      if (!this.isDatabaseConnected()) {
+        return createSuccessResponse(
+          { _id: id, rating, modified: new Date() }, 
+          'Company rating updated successfully (mock mode)'
+        );
       }
 
       const company = await Company.findById(id);
@@ -179,6 +279,10 @@ export class CompanyService {
 
   async getCompanyStats() {
     try {
+      if (!this.isDatabaseConnected()) {
+        return createSuccessResponse(this.getMockStats(), 'Company statistics retrieved successfully (mock mode)');
+      }
+
       const stats = await Company.aggregate([
         {
           $group: {

@@ -1,0 +1,30 @@
+steps:
+  # Build the core API
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/fiifi-repo/fiifi-core-api:latest', './fiifi-core-api']
+  
+  # Push the image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/fiifi-repo/fiifi-core-api:latest']
+  
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'fiifi-core-api-dev'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/fiifi-repo/fiifi-core-api:latest'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '3000'
+      - '--set-env-vars'
+      - 'NODE_ENV=development,PORT=3000'
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/fiifi-repo/fiifi-core-api:latest'

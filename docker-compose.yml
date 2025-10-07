@@ -16,21 +16,17 @@ services:
   core-api:
     build:
       context: ./fiifi-core-api
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: fiifi-core-api
     ports:
       - "3000:3000"
     environment:
       NODE_ENV: development
       MONGODB_URI: mongodb://mongodb:27017/fiifi
-      PORT: 3000
     depends_on:
       - mongodb
     networks:
       - fiifi-network
-    volumes:
-      - ./fiifi-core-api:/app
-      - /app/node_modules
 
 volumes:
   mongodb_data:
